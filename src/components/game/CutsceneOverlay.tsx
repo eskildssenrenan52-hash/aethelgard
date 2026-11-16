@@ -43,6 +43,17 @@ export const CutsceneOverlay: React.FC<CutsceneOverlayProps> = ({
   const [beatIdx, setBeatIdx] = useState(0);
   const [charCount, setCharCount] = useState(0);
 
+  // Telas baixas (celular em paisagem): layout compacto, palco e texto lado a lado.
+  const [compact, setCompact] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-height: 520px)').matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-height: 520px)');
+    const onChange = () => setCompact(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
   const beat = def.beats[Math.min(beatIdx, def.beats.length - 1)];
   const fullText = formatCutsceneText(beat.text, hero.name);
   const speakerName = formatCutsceneText(beat.speaker, hero.name);
@@ -593,6 +604,96 @@ export const CutsceneOverlay: React.FC<CutsceneOverlayProps> = ({
     return () => cancelAnimationFrame(rafId);
   }, [cutsceneId, hero.id, skinId, beat.cameraFocus, def]);
 
+  const advanceLabel = !isLineComplete
+    ? 'Completar'
+    : beatIdx < def.beats.length - 1
+      ? 'Continuar'
+      : compact
+        ? 'Começar'
+        : 'Começar Jornada';
+
+  const progressDots = (
+    <div className="flex items-center gap-1" aria-label={`Cena ${beatIdx + 1} de ${def.beats.length}`}>
+      {def.beats.map((_, i) => (
+        <span
+          key={i}
+          className={`border border-[#07050d] ${compact ? 'h-1.5 w-3' : 'h-2 w-4'} ${
+            i <= beatIdx ? 'bg-[#ffd27d]' : 'bg-[#1c162b]'
+          }`}
+        />
+      ))}
+    </div>
+  );
+
+  if (compact) {
+    return (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={def.title}
+        className="fixed inset-0 z-40 flex items-center justify-center bg-[#040308]/95 pointer-events-auto"
+        style={{
+          paddingTop: 'max(6px, env(safe-area-inset-top))',
+          paddingBottom: 'max(6px, env(safe-area-inset-bottom))',
+          paddingLeft: 'max(8px, env(safe-area-inset-left))',
+          paddingRight: 'max(8px, env(safe-area-inset-right))',
+        }}
+      >
+        <div className="pixel-panel flex max-h-full w-full max-w-4xl flex-col overflow-hidden p-2 text-[#f5efe6]">
+          <div className="flex items-center justify-between gap-2 border-b-2 border-[#07050d] pb-1">
+            <h2
+              style={{ color: def.accentColor }}
+              className="truncate font-pixel text-sm font-bold tracking-wide text-stroke-dark"
+            >
+              {def.title}
+            </h2>
+            <PixelButton type="button" variant="slate" onClick={onFinish} className="shrink-0 px-2 py-0.5 text-[10px]">
+              <span>Pular</span>
+            </PixelButton>
+          </div>
+
+          <div className="mt-1.5 flex min-h-0 flex-1 gap-2">
+            <div className="w-[44%] shrink-0 self-start border-2 border-[#07050d] bg-[#07050d] p-0.5">
+              <canvas
+                ref={canvasRef}
+                width={SCENE_W * 2}
+                height={SCENE_H * 2}
+                data-testid="cutscene-canvas"
+                className="pixel-canvas aspect-[320/132] w-full"
+              />
+            </div>
+
+            <div className="pixel-subpanel flex min-h-0 min-w-0 flex-1 flex-col p-2">
+              <div className="flex items-baseline justify-between gap-2 border-b border-[#31274a] pb-1">
+                <div className="flex min-w-0 items-baseline gap-1.5">
+                  <strong
+                    style={{ color: beat.accentColor }}
+                    className="truncate font-pixel text-xs font-bold text-stroke-dark"
+                  >
+                    {speakerName}
+                  </strong>
+                  <span className="truncate font-pixel text-[10px] text-[#a9a0bd]">· {beat.role}</span>
+                </div>
+                {progressDots}
+              </div>
+
+              <p className="mt-1.5 min-h-0 flex-1 overflow-y-auto font-body-pixel text-xs leading-snug text-[#f5efe6]">
+                {fullText.slice(0, charCount)}
+              </p>
+
+              <div className="mt-1.5 flex justify-end">
+                <PixelButton type="button" variant="gold" onClick={handleAdvance} className="px-3 py-1 text-xs">
+                  <PixelIcon name="play" className="h-3 w-3" />
+                  <span>{advanceLabel}</span>
+                </PixelButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       role="dialog"
@@ -600,8 +701,7 @@ export const CutsceneOverlay: React.FC<CutsceneOverlayProps> = ({
       aria-label={def.title}
       className="fixed inset-0 z-40 flex items-center justify-center bg-[#040308]/95 p-4 pointer-events-auto"
     >
-      <div className="pixel-panel w-full max-w-4xl overflow-hidden p-4 text-[#f5efe6]">
-        {/* Header Bar */}
+      <div className="pixel-panel max-h-full w-full max-w-4xl overflow-y-auto p-4 text-[#f5efe6]">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-[#07050d] pb-2.5">
           <div>
             <h2
@@ -612,17 +712,11 @@ export const CutsceneOverlay: React.FC<CutsceneOverlayProps> = ({
             </h2>
             <p className="font-body-pixel text-xs text-[#b8afc9]">{def.subtitle}</p>
           </div>
-          <PixelButton
-            type="button"
-            variant="slate"
-            onClick={onFinish}
-            className="px-3 py-1.5 text-xs"
-          >
+          <PixelButton type="button" variant="slate" onClick={onFinish} className="px-3 py-1.5 text-xs">
             <span>Pular Cena [Esc / Start]</span>
           </PixelButton>
         </div>
 
-        {/* Animated Pixel Art Diorama Stage (2x 640x264 native micro-pixel canvas) */}
         <div className="mt-3 border-2 border-[#07050d] bg-[#07050d] p-1">
           <canvas
             ref={canvasRef}
@@ -633,29 +727,15 @@ export const CutsceneOverlay: React.FC<CutsceneOverlayProps> = ({
           />
         </div>
 
-        {/* Narrative Box */}
         <div className="pixel-subpanel mt-3 p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#31274a] pb-1.5">
             <div className="flex items-baseline gap-2">
-              <strong
-                style={{ color: beat.accentColor }}
-                className="font-pixel text-lg font-bold text-stroke-dark"
-              >
+              <strong style={{ color: beat.accentColor }} className="font-pixel text-lg font-bold text-stroke-dark">
                 {speakerName}
               </strong>
               <span className="font-pixel text-xs text-[#a9a0bd]">· {beat.role}</span>
             </div>
-
-            <div className="flex items-center gap-1.5" aria-label={`Cena ${beatIdx + 1} de ${def.beats.length}`}>
-              {def.beats.map((_, i) => (
-                <span
-                  key={i}
-                  className={`h-2 w-4 border border-[#07050d] ${
-                    i <= beatIdx ? 'bg-[#ffd27d]' : 'bg-[#1c162b]'
-                  }`}
-                />
-              ))}
-            </div>
+            {progressDots}
           </div>
 
           <p className="mt-3 min-h-[3.4rem] font-body-pixel text-sm leading-relaxed text-[#f5efe6]">
@@ -666,20 +746,9 @@ export const CutsceneOverlay: React.FC<CutsceneOverlayProps> = ({
             <span className="font-pixel text-xs text-[#9c92b0]">
               Teclado: [Espaço / E] · Controle: [A] Continuar / [Start] Pular
             </span>
-            <PixelButton
-              type="button"
-              variant="gold"
-              onClick={handleAdvance}
-              className="px-5 py-2 text-sm"
-            >
+            <PixelButton type="button" variant="gold" onClick={handleAdvance} className="px-5 py-2 text-sm">
               <PixelIcon name="play" className="h-4 w-4" />
-              <span>
-                {!isLineComplete
-                  ? 'Completar'
-                  : beatIdx < def.beats.length - 1
-                    ? 'Continuar'
-                    : 'Começar Jornada'}
-              </span>
+              <span>{advanceLabel}</span>
             </PixelButton>
           </div>
         </div>
