@@ -1,0 +1,6 @@
+{
+  "name": "Aethelgard: Abismo de Cinzas",
+  "description": "Plataforma de ação pixel-art estilo Celeste com 48 heróis animados, 50 mundos na superfície, 20 círculos do Submundo e mundo aberto sandbox.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
