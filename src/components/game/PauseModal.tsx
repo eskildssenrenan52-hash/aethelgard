@@ -86,7 +86,7 @@ export const PauseModal: React.FC<PauseModalProps> = ({
       data-testid="pause-modal"
       className="fixed inset-0 z-30 flex items-center justify-center bg-[#05040b]/88 p-2 sm:p-4 pointer-events-auto"
     >
-      <div className="pixel-panel relative w-full max-w-xl max-h-[94vh] overflow-y-auto pixel-scroll p-3.5 sm:p-4 text-[#f5efe6]">
+      <div className="pixel-panel relative w-full max-w-xl max-h-[92dvh] overflow-y-auto pixel-scroll p-3 sm:p-4 text-[#f5efe6]">
         {/* Brass Pixel Corner Rivets */}
         <span className="pointer-events-none absolute left-1.5 top-1.5 h-2 w-2 bg-[#ffd27d]" aria-hidden="true" />
         <span className="pointer-events-none absolute right-1.5 top-1.5 h-2 w-2 bg-[#ffd27d]" aria-hidden="true" />

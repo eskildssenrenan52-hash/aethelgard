@@ -189,7 +189,7 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
       </div>
 
       {/* Main Crisp Pixel Victory Card */}
-      <div className="pixel-panel relative z-10 w-full max-w-xl max-h-[94vh] overflow-y-auto pixel-scroll p-3.5 sm:p-5 text-[#f5efe6]">
+      <div className="pixel-panel relative z-10 w-full max-w-xl max-h-[92dvh] overflow-y-auto pixel-scroll p-3 sm:p-5 text-[#f5efe6]">
         {/* Brass Pixel Corner Rivets */}
         <span className="pointer-events-none absolute left-1.5 top-1.5 h-2 w-2 bg-[#ffd24d]" aria-hidden="true" />
         <span className="pointer-events-none absolute right-1.5 top-1.5 h-2 w-2 bg-[#ffd24d]" aria-hidden="true" />

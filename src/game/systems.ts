@@ -40,32 +40,37 @@ export interface VirtualJoystickOutput {
 export function decodeVirtualJoystick(
   dx: number,
   dy: number,
-  maxRadius = 44,
-  deadzone = 0.22
+  maxRadius = 40,
+  deadzone = 0.12
 ): VirtualJoystickOutput {
   const dist = Math.hypot(dx, dy);
   if (dist < 1e-4) {
     return { analogX: 0, analogY: 0, left: false, right: false, up: false, down: false, knobX: 0, knobY: 0 };
   }
   const clampedDist = Math.min(dist, maxRadius);
-  const nx = (dx / dist) * (clampedDist / maxRadius);
-  const ny = (dy / dist) * (clampedDist / maxRadius);
   const mag = Math.min(1, clampedDist / maxRadius);
+  const dirX = dx / dist;
+  const dirY = dy / dist;
 
-  const knobX = (dx / dist) * clampedDist;
-  const knobY = (dy / dist) * clampedDist;
+  const knobX = dirX * clampedDist;
+  const knobY = dirY * clampedDist;
 
   if (mag < deadzone) {
     return { analogX: 0, analogY: 0, left: false, right: false, up: false, down: false, knobX, knobY };
   }
 
+  // Remap [deadzone..1] -> [0..1] with snappy responsive power curve for instant platforming response
+  const rescaledMag = Math.pow((mag - deadzone) / Math.max(0.01, 1 - deadzone), 0.78);
+  const nx = Math.max(-1, Math.min(1, dirX * rescaledMag));
+  const ny = Math.max(-1, Math.min(1, dirY * rescaledMag));
+
   return {
-    analogX: Math.max(-1, Math.min(1, nx)),
-    analogY: Math.max(-1, Math.min(1, ny)),
-    left: nx < -0.28,
-    right: nx > 0.28,
-    up: ny < -0.34,
-    down: ny > 0.34,
+    analogX: nx,
+    analogY: ny,
+    left: nx < -0.18,
+    right: nx > 0.18,
+    up: ny < -0.22,
+    down: ny > 0.22,
     knobX,
     knobY,
   };

@@ -122,7 +122,7 @@ export const DefeatModal: React.FC<DefeatModalProps> = ({
       </div>
 
       {/* Main Crimson-Obsidian Pixel Defeat Panel */}
-      <div className="pixel-panel relative z-10 w-full max-w-xl max-h-[94vh] overflow-y-auto pixel-scroll p-3.5 sm:p-5 text-[#f5efe6] !border-[#07050d] !bg-[#160b16] shadow-[inset_3px_3px_0_0_#6e2139,inset_-3px_-3px_0_0_#290d1a,0_6px_0_0_#07050d]">
+      <div className="pixel-panel relative z-10 w-full max-w-xl max-h-[92dvh] overflow-y-auto pixel-scroll p-3 sm:p-5 text-[#f5efe6] !border-[#07050d] !bg-[#160b16] shadow-[inset_3px_3px_0_0_#6e2139,inset_-3px_-3px_0_0_#290d1a,0_6px_0_0_#07050d]">
         {/* Crimson-Iron Corner Rivets */}
         <span className="pointer-events-none absolute left-1.5 top-1.5 h-2 w-2 bg-[#ff5c77]" aria-hidden="true" />
         <span className="pointer-events-none absolute right-1.5 top-1.5 h-2 w-2 bg-[#ff5c77]" aria-hidden="true" />

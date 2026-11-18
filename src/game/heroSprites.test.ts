@@ -3,6 +3,7 @@ import test from 'node:test';
 import { HEROES, getHeroDef, getHeroSkinDef } from './heroes';
 import { HERO_PIXEL_H, HERO_PIXEL_W, HERO_VISUAL_PROFILES } from './heroArtRenderer';
 import { HERO_ANIM_FRAME_COUNTS, buildHeroPalette, type HeroAnimKey } from './sprites';
+import { decodeVirtualJoystick } from './systems';
 
 const EXPECTED_ANIMS: HeroAnimKey[] = [
   'idle',
@@ -19,9 +20,9 @@ const EXPECTED_ANIMS: HeroAnimKey[] = [
   'victory',
 ];
 
-test('studio pixel-art canvas resolution is upgraded to 56x64 high-craft Celeste-Plus grid', () => {
-  assert.equal(HERO_PIXEL_W, 56);
-  assert.equal(HERO_PIXEL_H, 64);
+test('studio pixel-art canvas resolution matches 40x40 Celeste-True hitbox parity grid', () => {
+  assert.equal(HERO_PIXEL_W, 40);
+  assert.equal(HERO_PIXEL_H, 40);
 });
 
 test('all 48 heroes exist with unique IDs, signatures, and 3 skins each (144 variants)', () => {
@@ -72,3 +73,25 @@ test('buildHeroPalette resolves valid hex colors for every hero, skin, and dash 
     }
   }
 });
+
+test('decodeVirtualJoystick provides sensitive immediate response, smooth diagonals, and clean deadzone', () => {
+  const dead = decodeVirtualJoystick(2, 2, 36, 0.12);
+  assert.equal(dead.left, false);
+  assert.equal(dead.right, false);
+  assert.equal(dead.up, false);
+  assert.equal(dead.down, false);
+
+  // Subtle right flick (10px out of 36px) triggers responsive right movement
+  const subtleRight = decodeVirtualJoystick(10, 0, 36, 0.12);
+  assert.equal(subtleRight.right, true);
+  assert.equal(subtleRight.left, false);
+  assert.ok(subtleRight.analogX > 0.18);
+
+  // Up-right 45-degree dash aim engages both axes cleanly
+  const diag = decodeVirtualJoystick(20, -20, 36, 0.12);
+  assert.equal(diag.right, true);
+  assert.equal(diag.up, true);
+  assert.equal(diag.left, false);
+  assert.equal(diag.down, false);
+});
+

@@ -70,7 +70,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
   return (
     <div
       data-testid="title-screen"
-      className="fixed inset-0 z-20 flex flex-col justify-between bg-gradient-to-r from-[#07050ed9] via-[#07050e55] to-transparent p-3 sm:p-6 pointer-events-none"
+      className="pixel-scroll fixed inset-0 z-20 flex h-[100dvh] flex-col justify-between gap-3 overflow-y-auto bg-gradient-to-r from-[#07050ee3] via-[#07050e77] to-transparent p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] sm:p-6 pointer-events-auto"
     >
       {/* Minimal Top Bar */}
       <div className="flex w-full items-center justify-between gap-2 pointer-events-auto">
@@ -143,7 +143,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
       </div>
 
       {/* Left-Aligned Clean Celeste-Inspired Command Stack (Leaves >70% Canvas Open) */}
-      <div className="my-auto flex w-full max-w-[400px] flex-col gap-3 pointer-events-auto">
+      <div className="my-auto flex w-full max-w-[400px] flex-col gap-2.5 sm:gap-3 [@media(max-height:480px)]:my-1 [@media(max-height:480px)]:gap-2 pointer-events-auto">
         {/* Pixel Crest Title */}
         <svg
           viewBox="0 0 430 74"
@@ -297,16 +297,16 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
             type="button"
             variant="slate"
             onClick={() => onOpenOverlay('map')}
-            className="!px-2 py-1.5 text-[11px]"
+            className="min-h-[38px] !px-1.5 py-1.5 text-[10px] sm:text-[11px]"
           >
-            Fases [M]
+            Fases
           </PixelButton>
           <PixelButton
             type="button"
             variant="slate"
             data-testid="open-modes-btn"
             onClick={() => onOpenOverlay('modes')}
-            className="!px-2 py-1.5 text-[11px]"
+            className="min-h-[38px] !px-1.5 py-1.5 text-[10px] sm:text-[11px]"
           >
             Modos
           </PixelButton>
@@ -315,16 +315,16 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
             variant="slate"
             data-testid="open-forge-title-btn"
             onClick={() => onOpenOverlay('forge', 'equipment')}
-            className="!px-2 py-1.5 text-[11px]"
+            className="min-h-[38px] !px-1.5 py-1.5 text-[10px] sm:text-[11px]"
           >
-            Forja [I]
+            Forja
           </PixelButton>
           <PixelButton
             type="button"
             variant={moreOpen ? 'cyan' : 'slate'}
             data-testid="title-more-btn"
             onClick={() => setMoreOpen((v) => !v)}
-            className="!px-2 py-1.5 text-[11px]"
+            className="min-h-[38px] !px-1.5 py-1.5 text-[10px] sm:text-[11px]"
           >
             {moreOpen ? 'Menos ▴' : 'Mais ▾'}
           </PixelButton>
@@ -407,9 +407,12 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
       </div>
 
       {/* Minimal Bottom Hint */}
-      <div className="flex items-center justify-between gap-2">
-        <p className="font-pixel text-[11px] tracking-wide text-[#c7bddb] text-stroke-dark">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <p className="hidden sm:block font-pixel text-[11px] tracking-wide text-[#c7bddb] text-stroke-dark">
           WASD/Setas Mover · Espaço Pular · X Dash · C Escalar · Q Poder · Esc Pausa
+        </p>
+        <p className="sm:hidden font-pixel text-[10px] tracking-wide text-[#c7bddb] text-stroke-dark">
+          Touch Multi-Toque: Joystick + Pular/Dash/Escalar/Poder simultâneos
         </p>
         {gamepadName && (
           <span className="border-2 border-[#07050d] bg-[#1a5c49] px-2 py-0.5 font-pixel text-[10px] font-bold text-[#8effdb]">

@@ -38,14 +38,14 @@ export const HeroSpritePreview: React.FC<{
     let frameTick = 0;
     const frameCount = HERO_ANIM_FRAME_COUNTS[resolvedAnim] ?? 4;
     const draw = () => {
-      const V = 72;
+      const V = 48;
       const sc = canvas.width / V;
       ctx.setTransform(sc, 0, 0, sc, 0, 0);
       ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, V, V);
 
       ctx.fillStyle = colorWithAlpha(hero.accentColor, 0.14);
-      ctx.fillRect(10, 6, 52, 58);
+      ctx.fillRect(6, 4, 36, 40);
 
       drawHeroStudioSprite(
         ctx,
@@ -56,12 +56,12 @@ export const HeroSpritePreview: React.FC<{
         hero.modifiers.baseDashes,
         false,
         false,
-        36,
-        66,
+        24,
+        44,
         false,
         1,
         1,
-        64
+        40
       );
       frameTick++;
     };
@@ -260,7 +260,7 @@ export const HeroSelectModal: React.FC<HeroSelectModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="Seleção de Heróis"
-      className="fixed inset-0 z-40 flex items-center justify-center bg-[#05040a]/92 p-3 md:p-6 pointer-events-auto"
+      className="fixed inset-0 z-40 flex items-center justify-center bg-[#05040a]/92 p-2 sm:p-4 md:p-6 pointer-events-auto"
     >
       <PixelWindow
         title={
@@ -354,7 +354,7 @@ export const HeroSelectModal: React.FC<HeroSelectModalProps> = ({
             </div>
 
             {/* Brawl-Stars-Organized Hero Portrait Grid */}
-            <div className="pixel-scroll grid max-h-[66vh] grid-cols-2 gap-2.5 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="pixel-scroll grid max-h-[56dvh] grid-cols-1 gap-2 overflow-y-auto pr-1 min-[360px]:grid-cols-2 sm:max-h-[62dvh] sm:gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
               {filteredHeroes.map((hero) => {
                 const isEquipped = hero.id === activeHeroId;
                 const isTag = hero.id === tagHeroId;
@@ -563,12 +563,12 @@ export const HeroSelectModal: React.FC<HeroSelectModalProps> = ({
             </div>
 
             {/* 2-Column Single-Hero Pedestal + Kit Layout */}
-            <div className="grid max-h-[72vh] grid-cols-1 gap-3 overflow-y-auto pr-1 pixel-scroll lg:grid-cols-12">
+            <div className="grid max-h-[62dvh] grid-cols-1 gap-3 overflow-y-auto pr-1 pixel-scroll sm:max-h-[68dvh] lg:grid-cols-12">
               {/* LEFT: Animated Pedestal + Pixel Portrait + 3 Skin Cards */}
-              <div className="flex flex-col gap-3 lg:col-span-5">
+              <div className="flex flex-col gap-2.5 sm:gap-3 lg:col-span-5">
                 <div
                   style={{ borderColor: activeSkinForHero.badgeColor }}
-                  className="pixel-subpanel relative flex flex-col items-center justify-center bg-[#0d0919] p-4"
+                  className="pixel-subpanel relative flex flex-col items-center justify-center bg-[#0d0919] p-3 sm:p-4"
                 >
                   {/* Top-Left Portrait Badge & Top-Right Headgear Tag */}
                   <div className="flex w-full items-start justify-between gap-2">

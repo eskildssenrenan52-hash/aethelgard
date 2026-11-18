@@ -103,6 +103,14 @@ export const GameShell: React.FC<GameShellProps> = ({
   const keysJustPressed = useRef<Set<string>>(new Set());
   const touchHeld = useRef<Record<string, boolean>>({});
   const touchJustPressed = useRef<Record<string, boolean>>({});
+  const touchPointersRef = useRef<Map<number, string>>(new Map());
+  const [activeTouchActions, setActiveTouchActions] = useState<Record<string, boolean>>({});
+  const [grabLock, setGrabLock] = useState(false);
+  const grabLockRef = useRef(false);
+  const [sandboxTouchTool, setSandboxTouchTool] = useState<'mine' | 'place'>('mine');
+  const sandboxTouchToolRef = useRef<'mine' | 'place'>('mine');
+  const activeCanvasToolPointerRef = useRef<number | null>(null);
+  const lastSandboxDragTileRef = useRef<string>('');
   const analogRef = useRef<{
     x: number;
     y: number;
@@ -114,10 +122,19 @@ export const GameShell: React.FC<GameShellProps> = ({
   const joyBaseRef = useRef<HTMLDivElement | null>(null);
   const joyKnobRef = useRef<HTMLDivElement | null>(null);
   const joyPointerIdRef = useRef<number | null>(null);
+  const joyOriginRef = useRef<{ x: number; y: number } | null>(null);
 
   const focusViewport = () => {
     viewportRef.current?.focus({ preventScroll: true });
   };
+
+  useEffect(() => {
+    grabLockRef.current = grabLock;
+  }, [grabLock]);
+
+  useEffect(() => {
+    sandboxTouchToolRef.current = sandboxTouchTool;
+  }, [sandboxTouchTool]);
 
   // Sync body.dataset.state cleanly
   useEffect(() => {
@@ -434,8 +451,13 @@ export const GameShell: React.FC<GameShellProps> = ({
     const clearInputs = () => {
       keysHeld.current.clear();
       keysJustPressed.current.clear();
+      touchPointersRef.current.clear();
       touchHeld.current = {};
       touchJustPressed.current = {};
+      setActiveTouchActions({});
+      joyPointerIdRef.current = null;
+      joyOriginRef.current = null;
+      activeCanvasToolPointerRef.current = null;
       analogRef.current = { x: 0, y: 0, left: false, right: false, up: false, down: false };
       if (joyKnobRef.current) joyKnobRef.current.style.transform = 'translate3d(0px, 0px, 0px)';
     };
@@ -444,7 +466,30 @@ export const GameShell: React.FC<GameShellProps> = ({
       gameAudio.unlock();
     };
 
+    const onGlobalPointerEnd = (e: PointerEvent) => {
+      if (joyPointerIdRef.current === e.pointerId) {
+        joyPointerIdRef.current = null;
+        joyOriginRef.current = null;
+        analogRef.current = { x: 0, y: 0, left: false, right: false, up: false, down: false };
+        if (joyKnobRef.current) joyKnobRef.current.style.transform = 'translate3d(0px, 0px, 0px)';
+      }
+      if (activeCanvasToolPointerRef.current === e.pointerId) {
+        activeCanvasToolPointerRef.current = null;
+        lastSandboxDragTileRef.current = '';
+      }
+      if (touchPointersRef.current.delete(e.pointerId)) {
+        const nextHeld: Record<string, boolean> = {};
+        for (const act of touchPointersRef.current.values()) {
+          nextHeld[act] = true;
+        }
+        touchHeld.current = nextHeld;
+        setActiveTouchActions({ ...nextHeld });
+      }
+    };
+
     window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointerup', onGlobalPointerEnd);
+    window.addEventListener('pointercancel', onGlobalPointerEnd);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', clearInputs);
@@ -542,6 +587,7 @@ export const GameShell: React.FC<GameShellProps> = ({
           held.has('KeyL') ||
           held.has('ACT_GRAB') ||
           !!th.grab ||
+          grabLockRef.current ||
           pad.input.grabHeld,
         interactJustPressed:
           just.has('KeyE') ||
@@ -645,6 +691,8 @@ export const GameShell: React.FC<GameShellProps> = ({
     return () => {
       cancelAnimationFrame(rafId);
       window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointerup', onGlobalPointerEnd);
+      window.removeEventListener('pointercancel', onGlobalPointerEnd);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', clearInputs);
@@ -675,23 +723,76 @@ export const GameShell: React.FC<GameShellProps> = ({
     focusViewport();
   };
 
-  const setVirtualKey = (key: string, down: boolean) => {
-    gameAudio.unlock();
-    if (down && !touchHeld.current[key]) {
-      touchJustPressed.current[key] = true;
+  const syncTouchActionsState = () => {
+    const prevHeld = touchHeld.current;
+    const nextHeld: Record<string, boolean> = {};
+    for (const act of touchPointersRef.current.values()) {
+      nextHeld[act] = true;
+      if (!prevHeld[act]) {
+        touchJustPressed.current[act] = true;
+        if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+          navigator.vibrate(4);
+        }
+      }
     }
-    touchHeld.current[key] = down;
+    touchHeld.current = nextHeld;
+    setActiveTouchActions((cur) => {
+      const curKeys = Object.keys(cur);
+      const nextKeys = Object.keys(nextHeld);
+      if (curKeys.length === nextKeys.length && nextKeys.every((k) => cur[k])) return cur;
+      return { ...nextHeld };
+    });
   };
 
-  const updateJoystickFromPointer = (clientX: number, clientY: number) => {
+  const handleTouchActionPointerDown = (action: string, e: React.PointerEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    gameAudio.unlock();
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore synthetic pointer events without active capture
+    }
+    touchPointersRef.current.set(e.pointerId, action);
+    syncTouchActionsState();
+  };
+
+  const handleTouchActionPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!touchPointersRef.current.has(e.pointerId)) return;
+    if (typeof document === 'undefined') return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const btn = el?.closest?.('[data-touch-action]') as HTMLElement | null;
+    const hitAction = btn?.dataset?.touchAction;
+    if (hitAction && touchPointersRef.current.get(e.pointerId) !== hitAction) {
+      touchPointersRef.current.set(e.pointerId, hitAction);
+      syncTouchActionsState();
+    }
+  };
+
+  const handleTouchActionPointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    if (touchPointersRef.current.delete(e.pointerId)) {
+      syncTouchActionsState();
+    }
+  };
+
+  const updateJoystickFromPointer = (clientX: number, clientY: number, isInitial = false) => {
     const base = joyBaseRef.current;
     if (!base) return;
     const rect = base.getBoundingClientRect();
-    const cx = rect.left + rect.width * 0.5;
-    const cy = rect.top + rect.height * 0.5;
-    const dx = clientX - cx;
-    const dy = clientY - cy;
-    const decoded = decodeVirtualJoystick(dx, dy, 40, 0.22);
+    const centerX = rect.left + rect.width * 0.5;
+    const centerY = rect.top + rect.height * 0.5;
+    if (isInitial || !joyOriginRef.current) {
+      // Floating thumb anchor gently bounded inside joystick pad for zero dead-angle hunt
+      const clampX = Math.max(centerX - 18, Math.min(centerX + 18, clientX));
+      const clampY = Math.max(centerY - 18, Math.min(centerY + 18, clientY));
+      const dCenter = Math.hypot(clientX - centerX, clientY - centerY);
+      joyOriginRef.current = dCenter <= 16 ? { x: clampX, y: clampY } : { x: centerX, y: centerY };
+    }
+    const origin = joyOriginRef.current;
+    const dx = clientX - origin.x;
+    const dy = clientY - origin.y;
+    const decoded = decodeVirtualJoystick(dx, dy, 36, 0.12);
     analogRef.current = {
       x: decoded.analogX,
       y: decoded.analogY,
@@ -701,14 +802,15 @@ export const GameShell: React.FC<GameShellProps> = ({
       down: decoded.down,
     };
     if (joyKnobRef.current) {
-      joyKnobRef.current.style.transform = `translate3d(${Math.round(decoded.knobX)}px, ${Math.round(
-        decoded.knobY
-      )}px, 0px)`;
+      const kdx = origin.x - centerX + decoded.knobX;
+      const kdy = origin.y - centerY + decoded.knobY;
+      joyKnobRef.current.style.transform = `translate3d(${Math.round(kdx)}px, ${Math.round(kdy)}px, 0px)`;
     }
   };
 
   const resetVirtualJoystick = () => {
     joyPointerIdRef.current = null;
+    joyOriginRef.current = null;
     analogRef.current = { x: 0, y: 0, left: false, right: false, up: false, down: false };
     if (joyKnobRef.current) {
       joyKnobRef.current.style.transform = 'translate3d(0px, 0px, 0px)';
@@ -777,7 +879,7 @@ export const GameShell: React.FC<GameShellProps> = ({
       ref={viewportRef}
       tabIndex={-1}
       onMouseDown={() => focusViewport()}
-      className="relative flex h-screen w-screen items-center justify-center overflow-hidden bg-[#07050d] outline-none"
+      className="relative flex h-[100dvh] w-screen items-center justify-center overflow-hidden bg-[#07050d] outline-none touch-none select-none"
     >
       {/* Isolated Pixel-Art Canvas Viewport (640x360 2x high-detail upscaled) */}
       <div className="relative flex h-full w-full items-center justify-center">
@@ -786,16 +888,46 @@ export const GameShell: React.FC<GameShellProps> = ({
           width={VIRTUAL_WIDTH * 2}
           height={VIRTUAL_HEIGHT * 2}
           data-testid="game-canvas"
-          onPointerMove={(e) => dispatchSandboxPointer(e, 'hover')}
+          onPointerMove={(e) => {
+            if (engineRef.current?.playMode !== 'sandbox_world' || engineRef.current?.mode !== 'playing') return;
+            if (activeCanvasToolPointerRef.current === e.pointerId) {
+              const canvas = canvasRef.current;
+              if (canvas) {
+                const rect = canvas.getBoundingClientRect();
+                const txKey = `${Math.floor((e.clientX - rect.left) / 14)},${Math.floor((e.clientY - rect.top) / 14)}`;
+                if (txKey !== lastSandboxDragTileRef.current) {
+                  lastSandboxDragTileRef.current = txKey;
+                  dispatchSandboxPointer(e, e.pointerType === 'touch' ? sandboxTouchToolRef.current : 'mine');
+                  return;
+                }
+              }
+            }
+            dispatchSandboxPointer(e, 'hover');
+          }}
           onPointerDown={(e) => {
             if (engineRef.current?.playMode !== 'sandbox_world' || engineRef.current?.mode !== 'playing') return;
+            if (e.pointerType === 'touch') {
+              activeCanvasToolPointerRef.current = e.pointerId;
+              lastSandboxDragTileRef.current = '';
+              dispatchSandboxPointer(e, sandboxTouchToolRef.current);
+              return;
+            }
             if (e.button === 2) dispatchSandboxPointer(e, 'place');
-            else if (e.button === 0) dispatchSandboxPointer(e, 'mine');
+            else if (e.button === 0) {
+              activeCanvasToolPointerRef.current = e.pointerId;
+              dispatchSandboxPointer(e, 'mine');
+            }
+          }}
+          onPointerUp={(e) => {
+            if (activeCanvasToolPointerRef.current === e.pointerId) {
+              activeCanvasToolPointerRef.current = null;
+              lastSandboxDragTileRef.current = '';
+            }
           }}
           onContextMenu={(e) => {
             if (engineRef.current?.playMode === 'sandbox_world') e.preventDefault();
           }}
-          className="pixel-canvas h-full w-full object-contain"
+          className="pixel-canvas h-full w-full object-contain touch-none"
         />
         <CinematicFX playing={hud?.mode === 'playing'} paused={hud?.mode === 'paused' || overlay !== 'none'} />
         <div aria-hidden="true" className="game-lens pointer-events-none absolute inset-0" />
@@ -841,6 +973,7 @@ export const GameShell: React.FC<GameShellProps> = ({
             <SandboxHudOverlay
               engine={engineRef.current}
               hud={hud}
+              showTouchControls={showTouchControls}
               onOpenForge={() => {
                 setForgeInitialTab('equipment');
                 engineRef.current?.setPaused(true);
@@ -859,7 +992,7 @@ export const GameShell: React.FC<GameShellProps> = ({
 
           {/* Minimal Celeste Top-Left Perimeter HUD */}
           <div
-            className={`absolute left-2.5 top-2 flex max-w-[calc(100vw-160px)] flex-col gap-1 sm:left-4 sm:top-3 ${
+            className={`absolute left-2 top-2 flex max-w-[calc(100vw-98px)] flex-col gap-1 sm:left-4 sm:top-3 ${
               hud.isSandboxWorld ? 'sm:max-w-[260px]' : 'sm:max-w-[42vw]'
             }`}
           >
@@ -1036,9 +1169,9 @@ export const GameShell: React.FC<GameShellProps> = ({
 
           {/* Dynamic Boss Pixel HP, Stagger & Weakness Bar (Top Center during Boss Fight) */}
           {hud.bossHp !== null && hud.bossMaxHp && (
-            <div data-testid="boss-hud-bar" className="absolute left-1/2 top-28 -translate-x-1/2 pointer-events-none md:top-3">
-              <div className="pixel-panel px-3.5 py-1.5 text-center">
-                <div className="flex flex-wrap items-center justify-center gap-2 font-pixel text-xs font-bold tracking-wider text-stroke-dark">
+            <div data-testid="boss-hud-bar" className="pointer-events-none absolute left-1/2 top-16 w-[min(94vw,420px)] -translate-x-1/2 lg:top-3">
+              <div className="pixel-panel px-2.5 py-1.5 text-center sm:px-3.5">
+                <div className="flex flex-wrap items-center justify-center gap-1.5 font-pixel text-[11px] font-bold tracking-wider text-stroke-dark sm:gap-2 sm:text-xs">
                   <span className="text-[#ff5c77]">{hud.bossName ?? 'GUARDIÃO'}</span>
                   {hud.bossPhase === 2 && (
                     <span className="border border-[#07050d] bg-[#9e471b] px-1.5 py-0 text-[10px] text-[#ffe47a]">
@@ -1091,11 +1224,11 @@ export const GameShell: React.FC<GameShellProps> = ({
                 {hud.bossTitle && (
                   <div className="font-body-pixel text-[10px] text-[#b8afc9]">{hud.bossTitle}</div>
                 )}
-                <div className="mt-1 flex items-center justify-center gap-1">
+                <div className="mt-1 flex items-center justify-center gap-0.5 sm:gap-1">
                   {Array.from({ length: hud.bossMaxHp }).map((_, idx) => (
                     <div
                       key={idx}
-                      className={`h-2.5 w-6 border border-[#07050d] ${
+                      className={`h-2 flex-1 max-w-6 border border-[#07050d] sm:h-2.5 ${
                         idx < hud.bossHp!
                           ? hud.bossPhase === 3
                             ? 'bg-[#ff2e63]'
@@ -1112,7 +1245,7 @@ export const GameShell: React.FC<GameShellProps> = ({
                     <span className="font-pixel text-[9px] uppercase tracking-wider text-[#ffd24d]">
                       Postura
                     </span>
-                    <div className="h-1.5 w-36 overflow-hidden border border-[#07050d] bg-[#120d1e]">
+                    <div className="h-1.5 w-32 overflow-hidden border border-[#07050d] bg-[#120d1e] sm:w-36">
                       <div
                         style={{
                           transform: `scaleX(${Math.max(0, Math.min(1, hud.bossStaggerRatio))})`,
@@ -1130,7 +1263,7 @@ export const GameShell: React.FC<GameShellProps> = ({
           )}
 
           {/* Minimal Top-Right Corner Utility Cluster */}
-          <div className="absolute right-2.5 top-2 flex items-center gap-1.5 pointer-events-auto sm:right-4 sm:top-3">
+          <div className="pointer-events-auto absolute right-2 top-2 flex items-center gap-1.5 sm:right-4 sm:top-3">
             <PixelButton
               type="button"
               variant="slate"
@@ -1138,7 +1271,7 @@ export const GameShell: React.FC<GameShellProps> = ({
               onClick={handleToggleMute}
               aria-label={hud.muted ? 'Ativar áudio' : 'Silenciar áudio'}
               title="Áudio [N]"
-              className="h-8 w-8 !px-0 !py-0 sm:h-9 sm:w-9"
+              className="h-9 w-9 !px-0 !py-0"
             >
               <PixelIcon
                 name={hud.muted ? 'sound_off' : 'sound_on'}
@@ -1154,7 +1287,7 @@ export const GameShell: React.FC<GameShellProps> = ({
               onClick={handleTogglePause}
               aria-label="Pausar jogo (Esc)"
               title="Pausar [Esc]"
-              className="h-8 !px-2.5 !py-0 font-pixel text-xs sm:h-9 sm:!px-3"
+              className="h-9 !px-2.5 !py-0 font-pixel text-xs sm:!px-3"
             >
               <PixelIcon name="pause" className="h-3.5 w-3.5" />
               <span className="hidden sm:inline font-bold tracking-wider">PAUSA</span>
@@ -1183,7 +1316,11 @@ export const GameShell: React.FC<GameShellProps> = ({
 
           {/* Pixel Mechanic Discovery Toast */}
           {hud.recentMechanicToast && (
-            <div className="pixel-panel pointer-events-none fixed bottom-32 right-3 max-w-[calc(100vw-24px)] px-3 py-2 text-xs text-[#4df0c0] sm:bottom-4 sm:right-4 sm:px-4 sm:py-2.5">
+            <div
+              className={`pixel-panel pointer-events-none fixed right-3 max-w-[calc(100vw-24px)] px-3 py-1.5 text-xs text-[#4df0c0] sm:bottom-4 sm:right-4 sm:px-4 sm:py-2.5 ${
+                showTouchControls ? 'bottom-40' : 'bottom-4'
+              }`}
+            >
               <span className="font-pixel uppercase tracking-wider text-[#8effdb]">Descoberta:</span>{' '}
               <strong className="font-pixel text-xs text-[#f5efe6] sm:text-sm">
                 {hud.recentMechanicToast}
@@ -1193,7 +1330,11 @@ export const GameShell: React.FC<GameShellProps> = ({
 
           {/* Context Interaction Floating Prompt (Altar, Quest Beacon, Lore Tablet) */}
           {(hud.nearShrine || hud.nearInteractLabel) && !hud.dialogue && overlay === 'none' && (
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-auto">
+            <div
+              className={`pointer-events-auto absolute left-1/2 -translate-x-1/2 ${
+                showTouchControls ? 'bottom-40 sm:bottom-6' : 'bottom-6'
+              }`}
+            >
               {hud.nearShrine ? (
                 <PixelButton
                   type="button"
@@ -1297,115 +1438,202 @@ export const GameShell: React.FC<GameShellProps> = ({
             </div>
           )}
 
-          {/* Mobile Virtual Analog Joystick + Action Controls ([T]) */}
+          {/* Mobile True Multi-Touch Analog Joystick + Simultaneous Action Controls ([T]) */}
           {showTouchControls && !hud.dialogue && (
-            <div className="pointer-events-none fixed inset-x-0 bottom-3 z-20 flex items-end justify-between px-3 sm:px-6">
-              {/* Crisp Square Pixel Virtual Analog Stick */}
-              <div
-                ref={joyBaseRef}
-                data-testid="virtual-joystick"
-                aria-label="Joystick Analógico Virtual"
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  gameAudio.unlock();
-                  joyPointerIdRef.current = e.pointerId;
-                  e.currentTarget.setPointerCapture(e.pointerId);
-                  updateJoystickFromPointer(e.clientX, e.clientY);
-                }}
-                onPointerMove={(e) => {
-                  if (joyPointerIdRef.current === e.pointerId) {
-                    updateJoystickFromPointer(e.clientX, e.clientY);
-                  }
-                }}
-                onPointerUp={(e) => {
-                  if (joyPointerIdRef.current === e.pointerId) {
-                    resetVirtualJoystick();
-                  }
-                }}
-                onPointerCancel={() => resetVirtualJoystick()}
-                className="pointer-events-auto relative flex h-24 w-24 touch-none select-none items-center justify-center border-2 border-[#07050d] bg-[#140e24]/92 shadow-[0_4px_0_0_#07050d] sm:h-28 sm:w-28"
-              >
-                <span className="pointer-events-none absolute top-1 font-pixel text-[10px] text-[#7c7399]">▲</span>
-                <span className="pointer-events-none absolute bottom-1 font-pixel text-[10px] text-[#7c7399]">▼</span>
-                <span className="pointer-events-none absolute left-1.5 font-pixel text-[10px] text-[#7c7399]">◄</span>
-                <span className="pointer-events-none absolute right-1.5 font-pixel text-[10px] text-[#7c7399]">►</span>
-                <div className="pointer-events-none h-9 w-9 border border-[#2f264a] bg-[#0c0818] sm:h-10 sm:w-10" />
+            <div className="pointer-events-none fixed inset-x-0 bottom-2 z-20 flex items-end justify-between px-2.5 pb-[env(safe-area-inset-bottom)] sm:bottom-3 sm:px-5">
+              {/* Left Thumb Pad: Floating Sensitive Virtual Analog Stick */}
+              <div className="pointer-events-auto flex flex-col items-start gap-1.5">
+                {hud.isSandboxWorld && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      data-testid="sandbox-touch-mine-btn"
+                      onClick={() => setSandboxTouchTool('mine')}
+                      className={`pixel-btn h-8 px-2 font-pixel text-[10px] font-bold ${
+                        sandboxTouchTool === 'mine'
+                          ? 'bg-[#e8a87c] text-[#09080f] is-touch-pressed'
+                          : 'bg-[#1c152e]/90 text-[#d7cee8]'
+                      }`}
+                    >
+                      MINERAR
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="sandbox-touch-place-btn"
+                      onClick={() => setSandboxTouchTool('place')}
+                      className={`pixel-btn h-8 px-2 font-pixel text-[10px] font-bold ${
+                        sandboxTouchTool === 'place'
+                          ? 'bg-[#52e5ff] text-[#09080f] is-touch-pressed'
+                          : 'bg-[#1c152e]/90 text-[#d7cee8]'
+                      }`}
+                    >
+                      COLOCAR
+                    </button>
+                  </div>
+                )}
+
                 <div
-                  ref={joyKnobRef}
-                  data-testid="virtual-joystick-knob"
-                  className="pointer-events-none absolute h-9 w-9 border-2 border-[#07050d] bg-[#52e5ff] shadow-[0_3px_0_0_#1e6478] sm:h-11 sm:w-11"
-                />
+                  ref={joyBaseRef}
+                  data-testid="virtual-joystick"
+                  aria-label="Joystick Analógico Virtual"
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    gameAudio.unlock();
+                    joyPointerIdRef.current = e.pointerId;
+                    try {
+                      e.currentTarget.setPointerCapture(e.pointerId);
+                    } catch {
+                      // Synthetic event without capture
+                    }
+                    updateJoystickFromPointer(e.clientX, e.clientY, true);
+                  }}
+                  onPointerMove={(e) => {
+                    if (joyPointerIdRef.current === e.pointerId) {
+                      e.preventDefault();
+                      updateJoystickFromPointer(e.clientX, e.clientY, false);
+                    }
+                  }}
+                  onPointerUp={(e) => {
+                    if (joyPointerIdRef.current === e.pointerId) {
+                      resetVirtualJoystick();
+                    }
+                  }}
+                  onPointerCancel={() => resetVirtualJoystick()}
+                  className="relative flex h-28 w-28 touch-none select-none items-center justify-center border-2 border-[#07050d] bg-[#140e24]/88 shadow-[0_4px_0_0_#07050d] sm:h-32 sm:w-32"
+                >
+                  <span className="pointer-events-none absolute top-1 font-pixel text-[10px] text-[#8d84ad]">▲</span>
+                  <span className="pointer-events-none absolute bottom-1 font-pixel text-[10px] text-[#8d84ad]">▼</span>
+                  <span className="pointer-events-none absolute left-1.5 font-pixel text-[10px] text-[#8d84ad]">◄</span>
+                  <span className="pointer-events-none absolute right-1.5 font-pixel text-[10px] text-[#8d84ad]">►</span>
+                  <div className="pointer-events-none h-10 w-10 border border-[#3a2f59] bg-[#0c0818] sm:h-11 sm:w-11" />
+                  <div
+                    ref={joyKnobRef}
+                    data-testid="virtual-joystick-knob"
+                    className="pointer-events-none absolute h-10 w-10 border-2 border-[#07050d] bg-[#52e5ff] shadow-[0_3px_0_0_#1e6478] sm:h-12 sm:w-12"
+                  />
+                </div>
               </div>
 
-              <div className="pointer-events-auto flex flex-col items-end gap-1.5 sm:gap-2">
+              {/* Right Multi-Touch Action Cluster (Independent pointerIds + Slide-Combo Support) */}
+              <div className="pointer-events-auto flex flex-col items-end gap-1.5 touch-none select-none sm:gap-2">
+                {/* Secondary Tactical Row */}
                 <div className="flex items-center gap-1 sm:gap-1.5">
                   <button
                     type="button"
-                    onPointerDown={() => setVirtualKey('soul', true)}
-                    onPointerUp={() => setVirtualKey('soul', false)}
-                    onPointerCancel={() => setVirtualKey('soul', false)}
-                    className={`pixel-btn h-8 px-2 font-pixel text-[10px] font-bold sm:h-10 sm:px-2.5 sm:text-[11px] ${
+                    data-touch-action="soul"
+                    data-testid="touch-btn-soul"
+                    onPointerDown={(e) => handleTouchActionPointerDown('soul', e)}
+                    onPointerMove={handleTouchActionPointerMove}
+                    onPointerUp={handleTouchActionPointerUp}
+                    onPointerCancel={handleTouchActionPointerUp}
+                    className={`pixel-btn touch-none min-h-[38px] px-2 font-pixel text-[10px] font-bold sm:h-10 sm:px-2.5 sm:text-[11px] ${
                       (hud.soulCharge ?? 0) >= 40
                         ? 'bg-[#8f1d3b]/95 text-[#ffe066]'
-                        : 'bg-[#2a1524]/85 text-[#fb7185]'
+                        : 'bg-[#2a1524]/88 text-[#fb7185]'
+                    } ${activeTouchActions.soul ? 'is-touch-pressed ring-2 ring-[#ffe066]' : ''}`}
+                  >
+                    ALMA
+                  </button>
+                  <button
+                    type="button"
+                    data-touch-action="swap"
+                    data-testid="touch-btn-swap"
+                    onPointerDown={(e) => handleTouchActionPointerDown('swap', e)}
+                    onPointerMove={handleTouchActionPointerMove}
+                    onPointerUp={handleTouchActionPointerUp}
+                    onPointerCancel={handleTouchActionPointerUp}
+                    className={`pixel-btn touch-none min-h-[38px] px-2 bg-[#194a41]/92 font-pixel text-[10px] font-bold text-[#8effdb] sm:h-10 sm:px-2.5 sm:text-[11px] ${
+                      activeTouchActions.swap ? 'is-touch-pressed ring-2 ring-[#8effdb]' : ''
                     }`}
                   >
-                    [U] ALMA
+                    DUPLA
                   </button>
                   <button
                     type="button"
-                    onPointerDown={() => setVirtualKey('swap', true)}
-                    onPointerUp={() => setVirtualKey('swap', false)}
-                    onPointerCancel={() => setVirtualKey('swap', false)}
-                    className="pixel-btn h-8 px-2 bg-[#194a41]/92 font-pixel text-[10px] font-bold text-[#8effdb] sm:h-10 sm:px-2.5 sm:text-[11px]"
-                  >
-                    [F] DUPLA
-                  </button>
-                  <button
-                    type="button"
-                    onPointerDown={() => setVirtualKey('interact', true)}
-                    onPointerUp={() => setVirtualKey('interact', false)}
-                    onPointerCancel={() => setVirtualKey('interact', false)}
-                    className="pixel-btn h-8 px-2 bg-[#3a2812]/92 font-pixel text-[10px] font-bold text-[#ffd27d] sm:h-10 sm:px-2.5 sm:text-[11px]"
+                    data-touch-action="interact"
+                    data-testid="touch-btn-interact"
+                    onPointerDown={(e) => handleTouchActionPointerDown('interact', e)}
+                    onPointerMove={handleTouchActionPointerMove}
+                    onPointerUp={handleTouchActionPointerUp}
+                    onPointerCancel={handleTouchActionPointerUp}
+                    className={`pixel-btn touch-none min-h-[38px] px-2.5 bg-[#3a2812]/92 font-pixel text-[10px] font-bold text-[#ffd27d] sm:h-10 sm:px-3 sm:text-[11px] ${
+                      activeTouchActions.interact ? 'is-touch-pressed ring-2 ring-[#ffd27d]' : ''
+                    }`}
                   >
                     [E]
                   </button>
                   <button
                     type="button"
-                    onPointerDown={() => setVirtualKey('skill', true)}
-                    onPointerUp={() => setVirtualKey('skill', false)}
-                    onPointerCancel={() => setVirtualKey('skill', false)}
-                    className="pixel-btn h-8 px-2.5 bg-[#4c2463]/92 font-pixel text-[11px] font-bold text-[#ff88dd] sm:h-10 sm:px-3 sm:text-xs"
+                    data-touch-action="skill"
+                    data-testid="touch-btn-skill"
+                    onPointerDown={(e) => handleTouchActionPointerDown('skill', e)}
+                    onPointerMove={handleTouchActionPointerMove}
+                    onPointerUp={handleTouchActionPointerUp}
+                    onPointerCancel={handleTouchActionPointerUp}
+                    className={`pixel-btn touch-none min-h-[38px] px-3 bg-[#4c2463]/95 font-pixel text-[11px] font-bold text-[#ff88dd] sm:h-10 sm:px-3.5 sm:text-xs ${
+                      activeTouchActions.skill ? 'is-touch-pressed ring-2 ring-[#ff88dd]' : ''
+                    }`}
                   >
                     [Q]
                   </button>
                 </div>
 
+                {/* Primary Ergonomic Thumb Row: Lock + Grab + Dash + Jump */}
                 <div className="flex items-end gap-1.5 sm:gap-2">
                   <button
                     type="button"
-                    onPointerDown={() => setVirtualKey('grab', true)}
-                    onPointerUp={() => setVirtualKey('grab', false)}
-                    onPointerCancel={() => setVirtualKey('grab', false)}
-                    className="pixel-btn h-11 px-2 bg-[#1a5c49]/92 font-pixel text-[11px] font-bold text-[#8effdb] sm:h-12 sm:px-3 sm:text-xs"
+                    data-testid="touch-btn-grab-lock"
+                    aria-pressed={grabLock}
+                    title="Travar escalada automática sem segurar"
+                    onClick={() => setGrabLock((v) => !v)}
+                    className={`pixel-btn touch-none h-11 px-2 font-pixel text-[9px] font-bold sm:h-12 ${
+                      grabLock
+                        ? 'bg-[#4df0c0] text-[#09080f] ring-2 ring-white'
+                        : 'bg-[#1b142d]/90 text-[#b8afc9]'
+                    }`}
+                  >
+                    {grabLock ? 'TRAVA ON' : 'TRAVA'}
+                  </button>
+                  <button
+                    type="button"
+                    data-touch-action="grab"
+                    data-testid="touch-btn-grab"
+                    onPointerDown={(e) => handleTouchActionPointerDown('grab', e)}
+                    onPointerMove={handleTouchActionPointerMove}
+                    onPointerUp={handleTouchActionPointerUp}
+                    onPointerCancel={handleTouchActionPointerUp}
+                    className={`pixel-btn touch-none h-12 px-2.5 bg-[#1a5c49]/95 font-pixel text-[11px] font-bold text-[#8effdb] sm:h-13 sm:px-3.5 sm:text-xs ${
+                      activeTouchActions.grab || grabLock ? 'is-touch-pressed ring-2 ring-[#8effdb]' : ''
+                    }`}
                   >
                     ESCALAR
                   </button>
                   <button
                     type="button"
-                    onPointerDown={() => setVirtualKey('dash', true)}
-                    onPointerUp={() => setVirtualKey('dash', false)}
-                    onPointerCancel={() => setVirtualKey('dash', false)}
-                    className="pixel-btn h-12 px-2.5 bg-[#2a4a6e]/92 font-pixel text-xs font-bold text-[#9ff0ff] sm:h-14 sm:px-4 sm:text-sm"
+                    data-touch-action="dash"
+                    data-testid="touch-btn-dash"
+                    onPointerDown={(e) => handleTouchActionPointerDown('dash', e)}
+                    onPointerMove={handleTouchActionPointerMove}
+                    onPointerUp={handleTouchActionPointerUp}
+                    onPointerCancel={handleTouchActionPointerUp}
+                    className={`pixel-btn touch-none h-14 px-3.5 bg-[#2a4a6e]/95 font-pixel text-xs font-bold text-[#9ff0ff] sm:h-15 sm:px-4.5 sm:text-sm ${
+                      activeTouchActions.dash ? 'is-touch-pressed ring-2 ring-[#9ff0ff]' : ''
+                    }`}
                   >
                     DASH
                   </button>
                   <button
                     type="button"
-                    onPointerDown={() => setVirtualKey('jump', true)}
-                    onPointerUp={() => setVirtualKey('jump', false)}
-                    onPointerCancel={() => setVirtualKey('jump', false)}
-                    className="pixel-btn h-12 px-3 bg-[#e8a87c]/95 font-pixel text-xs font-bold text-[#09080f] sm:h-14 sm:px-4 sm:text-sm"
+                    data-touch-action="jump"
+                    data-testid="touch-btn-jump"
+                    onPointerDown={(e) => handleTouchActionPointerDown('jump', e)}
+                    onPointerMove={handleTouchActionPointerMove}
+                    onPointerUp={handleTouchActionPointerUp}
+                    onPointerCancel={handleTouchActionPointerUp}
+                    className={`pixel-btn touch-none h-14 px-4 bg-[#e8a87c]/95 font-pixel text-xs font-bold text-[#09080f] sm:h-15 sm:px-5 sm:text-sm ${
+                      activeTouchActions.jump ? 'is-touch-pressed ring-2 ring-white' : ''
+                    }`}
                   >
                     PULAR
                   </button>
@@ -1416,8 +1644,8 @@ export const GameShell: React.FC<GameShellProps> = ({
 
           {/* Pixel NPC Dialogue Box */}
           {hud.dialogue && (
-            <div className="absolute inset-x-0 bottom-5 mx-auto max-w-2xl px-4 pointer-events-auto">
-              <div className="pixel-panel p-5">
+            <div className="absolute inset-x-0 bottom-3 mx-auto max-w-2xl px-3 pb-[env(safe-area-inset-bottom)] sm:bottom-5 sm:px-4 pointer-events-auto">
+              <div className="pixel-panel pixel-scroll max-h-[82dvh] overflow-y-auto p-3.5 sm:p-5">
                 <span className="pointer-events-none absolute left-1.5 top-1.5 h-1.5 w-1.5 bg-[#ffd27d]" aria-hidden="true" />
                 <span className="pointer-events-none absolute right-1.5 top-1.5 h-1.5 w-1.5 bg-[#ffd27d]" aria-hidden="true" />
                 <span className="pointer-events-none absolute bottom-1.5 left-1.5 h-1.5 w-1.5 bg-[#ffd27d]" aria-hidden="true" />
@@ -1427,18 +1655,18 @@ export const GameShell: React.FC<GameShellProps> = ({
                   style={{ borderBottomColor: hud.dialogue.accentColor }}
                   className="flex items-baseline justify-between gap-2 border-b-2 pb-2"
                 >
-                  <div className="flex items-baseline gap-2">
+                  <div className="flex flex-wrap items-baseline gap-2">
                     <span
                       style={{ color: hud.dialogue.accentColor }}
-                      className="font-pixel text-xl font-bold text-stroke-dark"
+                      className="font-pixel text-lg font-bold text-stroke-dark sm:text-xl"
                     >
                       {hud.dialogue.speaker}
                     </span>
-                    <span className="font-pixel text-xs text-[#b8afc9]">
+                    <span className="font-pixel text-[11px] text-[#b8afc9] sm:text-xs">
                       · {hud.dialogue.role}
                     </span>
                   </div>
-                  <span className="font-mono-num text-[11px] text-[#ffd27d]">[E / Espaço]</span>
+                  <span className="hidden sm:inline font-mono-num text-[11px] text-[#ffd27d]">[E / Espaço]</span>
                 </div>
 
                 <p className="mt-3 min-h-[3.2rem] font-body-pixel text-sm leading-relaxed text-[#f5efe6]">

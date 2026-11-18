@@ -3435,7 +3435,7 @@ export class PixelRenderer {
       frame.facing < 0,
       1,
       1,
-      24
+      20
     );
     ctx.restore();
   }
@@ -3491,7 +3491,7 @@ export class PixelRenderer {
       engine.echoCloneFacing < 0,
       1,
       1,
-      24
+      20
     );
     ctx.strokeStyle = '#67e8f9cc';
     ctx.beginPath();
@@ -3520,7 +3520,7 @@ export class PixelRenderer {
         g.facing < 0,
         1,
         1,
-        24
+        20
       );
       ctx.restore();
     }
@@ -3610,60 +3610,59 @@ export class PixelRenderer {
       trailHighlight = '#fff7bd';
     }
 
-    // Connected Verlet Flowing Trail (0.5px micro-interpolated silky ribbon + luminous tip glint)
+    // Connected Verlet Flowing Trail (sleek Celeste rounded clusters with chromatic #140c24 outline)
     const getNodeSize = (idx: number) =>
       hero.trailStyle === 'cape'
-        ? Math.max(2, 5 - Math.floor(idx / 2))
+        ? Math.max(1.5, 3.2 - idx * 0.25)
         : hero.trailStyle === 'spark'
-          ? Math.max(1.5, 3 - Math.floor(idx / 3))
-          : Math.max(2, 4 - Math.floor(idx / 2));
+          ? Math.max(1, 2.2 - idx * 0.2)
+          : Math.max(1.5, 2.8 - idx * 0.22);
+
+    const drawCluster = (cx: number, cy: number, d: number, col: string) => {
+      const x0 = snapHalf(cx - d * 0.5);
+      const y0 = snapHalf(cy - d * 0.5);
+      ctx.fillStyle = col;
+      ctx.fillRect(x0, y0, d, d);
+    };
 
     for (let i = p.hair.length - 1; i >= 0; i--) {
       const node = p.hair[i];
       const rad = getNodeSize(i);
-      const jit = hero.trailStyle === 'spark' ? Math.sin(this.time * 28 + i * 2) * 1.5 : 0;
-      ctx.fillStyle = '#090712';
-      ctx.fillRect(snapHalf(node.x - rad * 0.5) - 0.5, snapHalf(node.y - rad * 0.5 + jit) - 0.5, rad + 1, rad + 1);
+      const jit = hero.trailStyle === 'spark' ? Math.sin(this.time * 28 + i * 2) * 1.1 : 0;
+      drawCluster(node.x, node.y + jit, rad + 1, '#140c24');
       if (i > 0) {
         const prev = p.hair[i - 1];
-        const mx = (node.x + prev.x) * 0.5;
-        const my = (node.y + prev.y) * 0.5;
-        const mRad = Math.max(1.5, rad - 0.5);
-        ctx.fillRect(snapHalf(mx - mRad * 0.5) - 0.5, snapHalf(my - mRad * 0.5 + jit) - 0.5, mRad + 1, mRad + 1);
+        drawCluster((node.x + prev.x) * 0.5, (node.y + prev.y) * 0.5 + jit, Math.max(1.5, rad + 0.5), '#140c24');
       }
-      if (hero.trailStyle === 'ribbons' && i >= 1) {
-        const offY = Math.sin(this.time * 12 + i) * 1.5;
-        ctx.fillRect(snapHalf(node.x - p.facing * 2 - 0.5), snapHalf(node.y + 3 + offY - 0.5), 3, 3);
+      if (hero.trailStyle === 'ribbons' && i >= 1 && i < 5) {
+        const offY = Math.sin(this.time * 12 + i) * 1.1;
+        drawCluster(node.x - p.facing * 1.5, node.y + 2.2 + offY, 2, '#140c24');
       }
     }
     for (let i = p.hair.length - 1; i >= 0; i--) {
       const node = p.hair[i];
       const rad = getNodeSize(i);
-      const jit = hero.trailStyle === 'spark' ? Math.sin(this.time * 28 + i * 2) * 1.5 : 0;
-      ctx.fillStyle = i < 2 ? trailHighlight : trailMain;
+      const jit = hero.trailStyle === 'spark' ? Math.sin(this.time * 28 + i * 2) * 1.1 : 0;
+      const fill = i < 2 ? trailHighlight : trailMain;
       if (i > 0) {
         const prev = p.hair[i - 1];
-        const mx = (node.x + prev.x) * 0.5;
-        const my = (node.y + prev.y) * 0.5;
-        const mRad = Math.max(1.5, rad - 0.5);
-        ctx.fillRect(snapHalf(mx - mRad * 0.5), snapHalf(my - mRad * 0.5 + jit), mRad, mRad);
+        drawCluster((node.x + prev.x) * 0.5, (node.y + prev.y) * 0.5 + jit, Math.max(1, rad - 0.5), fill);
       }
-      ctx.fillRect(snapHalf(node.x - rad * 0.5), snapHalf(node.y - rad * 0.5 + jit), rad, rad);
-      // Crisp 0.5px specular highlight thread along top edge of cape/hair
-      ctx.fillStyle = colorWithAlpha(trailHighlight, 0.72);
+      drawCluster(node.x, node.y + jit, rad, fill);
+      // Crisp 0.5px specular highlight thread along top edge
+      ctx.fillStyle = colorWithAlpha(trailHighlight, 0.78);
       ctx.fillRect(snapHalf(node.x - rad * 0.5), snapHalf(node.y - rad * 0.5 + jit), rad, 0.5);
-      if (hero.trailStyle === 'ribbons' && i >= 1) {
-        const offY = Math.sin(this.time * 12 + i) * 1.5;
-        ctx.fillStyle = i % 2 === 0 ? '#ff66dd' : '#d580ff';
-        ctx.fillRect(snapHalf(node.x - p.facing * 2), snapHalf(node.y + 3 + offY), 2, 2);
+      if (hero.trailStyle === 'ribbons' && i >= 1 && i < 5) {
+        const offY = Math.sin(this.time * 12 + i) * 1.1;
+        drawCluster(node.x - p.facing * 1.5, node.y + 2.2 + offY, 1.2, i % 2 === 0 ? '#ff66dd' : '#d580ff');
       } else if (hero.trailStyle === 'veil' && i >= 1) {
         ctx.fillStyle = '#d4ceffaa';
-        ctx.fillRect(snapHalf(node.x - p.facing), snapHalf(node.y + 2), 2, 0.5);
+        ctx.fillRect(snapHalf(node.x - p.facing), snapHalf(node.y + 1.5), 1.5, 0.5);
       }
     }
     if (p.hair.length > 0 && (p.featherTimer > 0 || p.dashes >= 2)) {
       const tip = p.hair[p.hair.length - 1];
-      drawMicroSparkle(ctx, tip.x, tip.y, 1.5, trailHighlight, 0.85);
+      drawMicroSparkle(ctx, tip.x, tip.y, 1.2, trailHighlight, 0.85);
     }
 
     // Equipped Aura Trail (earned via Passe Estelar, World Stars, or Shop)
@@ -3737,8 +3736,8 @@ export class PixelRenderer {
 
     const skinKey = p.skinId ?? 'default';
     const evoTier = engine.heroEvolutions?.[hero.id] ?? 0;
-    const studioWorldH = 24;
-    const evoHeadTop = p.y + p.h - studioWorldH * p.scaleY;
+    const studioWorldH = 20;
+    const evoHeadTop = p.y + p.h - 13 * Math.abs(p.scaleY);
 
     if (evoTier >= 1) {
       drawHeroEvolutionBackLayers(ctx, {
@@ -3750,7 +3749,7 @@ export class PixelRenderer {
         headTopY: evoHeadTop,
         feetY: p.y + p.h,
         facing: p.facing < 0 ? -1 : 1,
-        scale: 1,
+        scale: 0.85,
       });
     }
 
@@ -3781,7 +3780,7 @@ export class PixelRenderer {
         headTopY: evoHeadTop,
         feetY: p.y + p.h,
         facing: p.facing < 0 ? -1 : 1,
-        scale: 1,
+        scale: 0.85,
       });
     }
 

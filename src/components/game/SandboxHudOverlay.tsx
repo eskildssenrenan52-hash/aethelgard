@@ -8,6 +8,7 @@ import { PixelButton } from './PixelUi';
 interface SandboxHudOverlayProps {
   engine: GameEngine;
   hud: HudSnapshot;
+  showTouchControls?: boolean;
   onOpenForge: () => void;
   onOpenPets: () => void;
   onOpenMap: () => void;
@@ -22,6 +23,7 @@ function formatDayClock(hours: number): string {
 export const SandboxHudOverlay: React.FC<SandboxHudOverlayProps> = ({
   engine,
   hud,
+  showTouchControls = false,
   onOpenForge,
   onOpenPets,
   onOpenMap,
@@ -58,9 +60,9 @@ export const SandboxHudOverlay: React.FC<SandboxHudOverlayProps> = ({
       data-testid="sandbox-hud-overlay"
       className="fixed inset-0 z-20 pointer-events-none"
     >
-      {/* Compact Top-Center Sandbox Strip */}
-      <div className="absolute left-1/2 top-2 -translate-x-1/2 flex flex-col items-center gap-1 pointer-events-auto">
-        <div className="flex items-center gap-1.5 border-2 border-[#07050d] bg-[#100c1be8] px-2 py-0.5 shadow-[0_2px_0_0_#07050d] whitespace-nowrap">
+      {/* Compact Top-Center Sandbox Strip (drops below top utility row on narrow mobile screens) */}
+      <div className="absolute left-1/2 top-12 -translate-x-1/2 flex max-w-[96vw] flex-col items-center gap-1 lg:top-2 pointer-events-auto">
+        <div className="pixel-scroll flex max-w-[96vw] items-center gap-1.5 overflow-x-auto border-2 border-[#07050d] bg-[#100c1be8] px-2 py-0.5 shadow-[0_2px_0_0_#07050d] whitespace-nowrap">
           <div data-testid="sandbox-hearts" className="flex items-center gap-0.5" title={`Vida ${hud.sandboxHp ?? 10}/${hud.sandboxMaxHp ?? 10}`}>
             {Array.from({ length: Math.ceil((hud.sandboxMaxHp ?? 10) / 2) }).map((_, i) => {
               const hp = hud.sandboxHp ?? 10;
@@ -152,7 +154,7 @@ export const SandboxHudOverlay: React.FC<SandboxHudOverlayProps> = ({
 
       {/* Subtle Action Feedback or Nearby Ore Radar Hint */}
       {(houseFeedback || hud.sandboxNearbyOreHint) && (
-        <div className="absolute left-1/2 top-11 -translate-x-1/2 flex flex-col items-center gap-1 pointer-events-none">
+        <div className="absolute left-1/2 top-22 -translate-x-1/2 flex flex-col items-center gap-1 lg:top-11 pointer-events-none">
           {houseFeedback && (
             <div className="border-2 border-[#07050d] bg-[#140e24f0] px-3 py-0.5 font-pixel text-[11px] font-bold text-[#ffe066]">
               {houseFeedback}
@@ -171,7 +173,7 @@ export const SandboxHudOverlay: React.FC<SandboxHudOverlayProps> = ({
 
       {/* Expandable Sandbox Quests Panel */}
       {showQuests && (
-        <div className="absolute right-3 top-14 w-80 max-h-[60vh] overflow-y-auto border-2 border-[#4df0c0] bg-[#0e0a1af2] p-3 pointer-events-auto pixel-scroll shadow-[0_6px_0_0_#07050d]">
+        <div className="absolute inset-x-2 top-24 max-h-[55dvh] overflow-y-auto border-2 border-[#4df0c0] bg-[#0e0a1af2] p-3 sm:inset-x-auto sm:right-3 sm:top-14 sm:w-80 pointer-events-auto pixel-scroll shadow-[0_6px_0_0_#07050d]">
           <div className="mb-2 flex items-center justify-between border-b border-[#2a2140] pb-1.5">
             <span className="font-pixel text-xs font-bold text-[#4df0c0]">
               Desafios do Mundo Aberto
@@ -228,7 +230,9 @@ export const SandboxHudOverlay: React.FC<SandboxHudOverlayProps> = ({
       {showBackpack && (
         <div
           data-testid="sandbox-backpack-drawer"
-          className="absolute bottom-16 left-1/2 -translate-x-1/2 w-[540px] max-w-[94vw] border-2 border-[#ffe066] bg-[#0e0a1af5] p-3 pointer-events-auto shadow-[0_6px_0_0_#07050d]"
+          className={`absolute left-1/2 -translate-x-1/2 w-[540px] max-w-[94vw] border-2 border-[#ffe066] bg-[#0e0a1af5] p-2.5 sm:p-3 pointer-events-auto shadow-[0_6px_0_0_#07050d] ${
+            showTouchControls ? 'bottom-[192px] sm:bottom-[208px]' : 'bottom-16'
+          }`}
         >
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-[#2a2140] pb-1.5">
             <span className="font-pixel text-xs font-bold text-[#ffe066]">
@@ -317,8 +321,12 @@ export const SandboxHudOverlay: React.FC<SandboxHudOverlayProps> = ({
       )}
 
       {/* Clean Bottom-Center Hotbar (1..9) + Mochila */}
-      <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center pointer-events-auto">
-        <div className="flex items-center gap-1 border-2 border-[#07050d] bg-[#0e0a1ae8] p-1 shadow-[0_4px_0_0_#07050d]">
+      <div
+        className={`absolute left-1/2 -translate-x-1/2 flex max-w-[96vw] items-center pointer-events-auto ${
+          showTouchControls ? 'bottom-[142px] sm:bottom-[156px]' : 'bottom-2.5'
+        }`}
+      >
+        <div className="pixel-scroll flex max-w-[96vw] items-center gap-1 overflow-x-auto border-2 border-[#07050d] bg-[#0e0a1ae8] p-1 shadow-[0_4px_0_0_#07050d]">
           {hud.sandboxHotbar.slice(0, 9).map((slot, idx) => {
             const active = idx === hud.sandboxSelectedSlot;
             return (
@@ -330,22 +338,22 @@ export const SandboxHudOverlay: React.FC<SandboxHudOverlayProps> = ({
                 onClick={() => engine.selectSandboxSlot(idx)}
                 style={{ borderColor: active ? '#ffe066' : '#2a2140' }}
                 title={`${slot.label} (${slot.category})`}
-                className={`relative flex h-11 w-11 flex-col items-center justify-between border-2 p-1 transition-transform ${
+                className={`relative flex h-9 w-9 shrink-0 flex-col items-center justify-between border-2 p-0.5 transition-transform sm:h-11 sm:w-11 sm:p-1 ${
                   active ? '-translate-y-0.5 bg-[#241942]' : 'bg-[#130e24] hover:bg-[#1b1433]'
                 }`}
               >
-                <span className="self-start font-mono-num text-[8px] leading-none text-[#b8afc9]">
+                <span className="self-start font-mono-num text-[7px] leading-none text-[#b8afc9] sm:text-[8px]">
                   {idx + 1}
                 </span>
                 <span
                   style={{ backgroundColor: slot.color }}
-                  className="h-3.5 w-3.5 border border-[#07050d]"
+                  className="h-3 w-3 border border-[#07050d] sm:h-3.5 sm:w-3.5"
                 />
-                <span className="w-full truncate text-center font-pixel text-[8px] leading-none text-[#f5efe6]">
+                <span className="w-full truncate text-center font-pixel text-[7px] leading-none text-[#f5efe6] sm:text-[8px]">
                   {slot.label.split(' ')[0]}
                 </span>
                 {slot.count > 1 && (
-                  <span className="absolute right-0.5 top-0.5 font-mono-num text-[8px] font-bold text-[#ffe066]">
+                  <span className="absolute right-0.5 top-0.5 font-mono-num text-[7px] font-bold text-[#ffe066] sm:text-[8px]">
                     {slot.count}
                   </span>
                 )}
@@ -358,14 +366,14 @@ export const SandboxHudOverlay: React.FC<SandboxHudOverlayProps> = ({
             tabIndex={-1}
             data-testid="sandbox-backpack-btn"
             onClick={() => setShowBackpack((v) => !v)}
-            className={`relative flex h-11 px-2 flex-col items-center justify-center border-2 transition-colors ${
+            className={`relative flex h-9 shrink-0 px-2 flex-col items-center justify-center border-2 transition-colors sm:h-11 ${
               showBackpack
                 ? 'border-[#ffe066] bg-[#332212] text-[#ffe066]'
                 : 'border-[#3a2e5c] bg-[#161029] text-[#52e5ff] hover:border-[#ffe066]'
             }`}
           >
-            <span className="font-pixel text-[9px] font-bold">Mochila</span>
-            <span className="font-mono-num text-[9px] text-[#ffe066]">
+            <span className="font-pixel text-[8px] font-bold sm:text-[9px]">Mochila</span>
+            <span className="font-mono-num text-[8px] text-[#ffe066] sm:text-[9px]">
               {hud.sandboxBackpack.length}
             </span>
           </button>

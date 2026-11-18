@@ -120,8 +120,8 @@ export const HeroFullSpriteCanvas: React.FC<{
       const c = canvasRef.current;
       const ctx = c?.getContext('2d');
       if (c && ctx) {
-        // 72x72 logical space * 4 = 288x288 integer pixels -> 1:1 native texel mapping for 56x64 sprite!
-        const V = 72;
+        // 48x48 logical space * 5 = 240x240 integer pixels -> 1:1 native texel mapping for 40x40 sprite!
+        const V = 48;
         const scale = c.width / V;
         ctx.setTransform(scale, 0, 0, scale, 0, 0);
         ctx.imageSmoothingEnabled = false;
@@ -136,21 +136,21 @@ export const HeroFullSpriteCanvas: React.FC<{
 
         // Crisp stepped pixel aura backdrop
         ctx.fillStyle = colorWithAlpha(evoColor, evolutionTier >= 1 ? 0.14 : 0.1);
-        ctx.fillRect(10, 6, 52, 56);
+        ctx.fillRect(6, 4, 36, 38);
         ctx.fillStyle = colorWithAlpha(evoColor, evolutionTier >= 1 ? 0.2 : 0.14);
-        ctx.fillRect(18, 14, 36, 42);
+        ctx.fillRect(11, 9, 26, 28);
 
         // Stepped Pixel Pedestal
         ctx.fillStyle = '#07050d';
-        ctx.fillRect(16, 62, 40, 6);
+        ctx.fillRect(10, 41, 28, 5);
         ctx.fillStyle = '#241a3f';
-        ctx.fillRect(18, 63, 36, 4);
+        ctx.fillRect(11, 42, 26, 3);
         ctx.fillStyle = colorWithAlpha(evoColor, 0.85);
-        ctx.fillRect(20, 63, 32, 1);
+        ctx.fillRect(13, 42, 22, 1);
 
-        const feetY = 64;
-        const heroWorldH = 64;
-        const headTopY = feetY - heroWorldH;
+        const feetY = 43;
+        const heroWorldH = 40;
+        const headTopY = feetY - 26;
         const fpsSpeed = anim === 'dash' || anim === 'skill' ? 5.2 : anim === 'run' || anim === 'victory' ? 4.4 : 2.6;
         const frameCount = HERO_ANIM_FRAME_COUNTS[anim] ?? 4;
         const frameIdx = Math.floor(t * fpsSpeed) % frameCount;
@@ -159,12 +159,12 @@ export const HeroFullSpriteCanvas: React.FC<{
           heroId,
           tier: evolutionTier,
           time: t,
-          cx: 36,
-          cy: feetY - heroWorldH * 0.45,
+          cx: 24,
+          cy: feetY - 14,
           headTopY,
           feetY,
           facing: 1,
-          scale: 1.5,
+          scale: 1.15,
         });
 
         drawHeroStudioSprite(
@@ -176,7 +176,7 @@ export const HeroFullSpriteCanvas: React.FC<{
           hero.modifiers.baseDashes,
           false,
           false,
-          36,
+          24,
           feetY,
           false,
           1,
@@ -188,12 +188,12 @@ export const HeroFullSpriteCanvas: React.FC<{
           heroId,
           tier: evolutionTier,
           time: t,
-          cx: 36,
-          cy: feetY - heroWorldH * 0.45,
+          cx: 24,
+          cy: feetY - 14,
           headTopY,
           feetY,
           facing: 1,
-          scale: 1.5,
+          scale: 1.15,
         });
       }
       raf = requestAnimationFrame(render);
@@ -207,8 +207,8 @@ export const HeroFullSpriteCanvas: React.FC<{
   return (
     <canvas
       ref={canvasRef}
-      width={288}
-      height={288}
+      width={240}
+      height={240}
       style={{ width: size, height: size }}
       className="pixel-canvas block"
     />

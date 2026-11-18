@@ -199,7 +199,7 @@ export const PixelWindow: React.FC<PixelWindowProps> = ({
   children,
 }) => {
   return (
-    <div className={`pixel-panel w-full ${maxWidthClass} p-5 text-[#f5efe6]`}>
+    <div className={`pixel-panel flex max-h-[92dvh] w-full flex-col ${maxWidthClass} p-3 text-[#f5efe6] sm:p-5`}>
       {/* Ornate Multi-Pixel Golden Corner Brackets & Glint Ticks */}
       <span className="pointer-events-none absolute left-1 top-1 h-2 w-2 bg-[#ffd27d]" aria-hidden="true" />
       <span className="pointer-events-none absolute left-3 top-1 h-1 w-2 bg-[#e8a87c]" aria-hidden="true" />
@@ -219,16 +219,16 @@ export const PixelWindow: React.FC<PixelWindowProps> = ({
       <span className="pointer-events-none absolute bottom-1 right-3 h-1 w-2 bg-[#e8a87c]" aria-hidden="true" />
       <span className="pointer-events-none absolute bottom-3 right-1 h-2 w-1 bg-[#e8a87c]" aria-hidden="true" />
 
-      <div className="flex items-start justify-between gap-4 border-b-2 border-[#07050d] pb-3 shadow-[0_2px_0_0_#31274a]">
-        <div>
+      <div className="flex shrink-0 items-start justify-between gap-3 border-b-2 border-[#07050d] pb-2 shadow-[0_2px_0_0_#31274a] sm:gap-4 sm:pb-3">
+        <div className="min-w-0">
           <h2
             style={{ color: accentColor }}
-            className="font-pixel text-2xl font-bold tracking-wide text-stroke-dark"
+            className="font-pixel text-lg font-bold leading-tight tracking-wide text-stroke-dark sm:text-2xl"
           >
             {title}
           </h2>
           {subtitle && (
-            <p className="mt-0.5 font-body-pixel text-xs text-[#b8afc9]">{subtitle}</p>
+            <p className="mt-0.5 font-body-pixel text-[11px] text-[#b8afc9] sm:text-xs">{subtitle}</p>
           )}
         </div>
         {onClose && (
@@ -237,14 +237,14 @@ export const PixelWindow: React.FC<PixelWindowProps> = ({
             variant="slate"
             onClick={onClose}
             aria-label={closeLabel}
-            className="h-9 w-9 !px-0 !py-0"
+            className="h-10 w-10 shrink-0 !px-0 !py-0 sm:h-9 sm:w-9"
           >
             <PixelIcon name="close" className="h-4 w-4" />
           </PixelButton>
         )}
       </div>
 
-      <div className="mt-4">{children}</div>
+      <div className="pixel-scroll mt-2.5 min-h-0 flex-1 overflow-y-auto pr-0.5 sm:mt-4">{children}</div>
     </div>
   );
 };

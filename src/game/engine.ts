@@ -751,16 +751,17 @@ export class GameEngine {
     const maxX = Math.max(0, roomW - VIRTUAL_WIDTH);
     const maxY = Math.max(0, roomH - VIRTUAL_HEIGHT);
     const lookAhead = this.player.facing * 26 + this.player.vx * 0.08;
+    const verticalLook = Math.max(-12, Math.min(18, this.player.vy * 0.04));
     const targetX = Math.max(
       0,
       Math.min(maxX, this.player.x + this.player.w * 0.5 - VIRTUAL_WIDTH * 0.5 + lookAhead)
     );
     const targetY = Math.max(
       0,
-      Math.min(maxY, this.player.y + this.player.h * 0.5 - VIRTUAL_HEIGHT * 0.54)
+      Math.min(maxY, this.player.y + this.player.h * 0.5 - VIRTUAL_HEIGHT * 0.54 + verticalLook)
     );
     const smoothX = 1 - Math.exp(-9.5 * dt);
-    const smoothY = 1 - Math.exp(-8.0 * dt);
+    const smoothY = 1 - Math.exp(-8.5 * dt);
     this.cameraX += (targetX - this.cameraX) * smoothX;
     this.cameraY += (targetY - this.cameraY) * smoothY;
     if (Math.abs(targetX - this.cameraX) < 0.15) this.cameraX = targetX;
@@ -3862,7 +3863,21 @@ export class GameEngine {
     if (events.landed) {
       gameAudio.playLand(events.heavyLanded);
       this.stompChain = 0;
+      const landCol = getAnyBiomeMeta(this.currentRoom.biome).particleColor;
       this.burstParticles(this.player.x + 4, this.player.y + this.player.h, events.heavyLanded ? 12 : 5, '#d9d4e8', events.heavyLanded ? 56 : 36);
+      // Celeste-style lateral boot dust puffs left & right
+      for (const side of [-1, 1] as const) {
+        this.spawnParticle(
+          this.player.x + 4 + side * 2,
+          this.player.y + this.player.h - 1,
+          side * (events.heavyLanded ? 36 : 22),
+          -(events.heavyLanded ? 18 : 10),
+          landCol,
+          events.heavyLanded ? 0.28 : 0.2,
+          events.heavyLanded ? 1.5 : 1,
+          35
+        );
+      }
       if (events.heavyLanded) {
         this.trauma = Math.min(1, this.trauma + 0.24);
         this.shakeDirY = 2.0;
@@ -9855,9 +9870,11 @@ export class GameEngine {
 
     this.stepProjectiles(simDt);
 
-    // Camera clamp to giant 4800x640 Sandbox world
-    const targetCamX = Math.max(0, Math.min(SANDBOX_WORLD_WIDTH_PX - VIRTUAL_WIDTH, p.x + 4 - VIRTUAL_WIDTH * 0.5));
-    const targetCamY = Math.max(0, Math.min(SANDBOX_WORLD_HEIGHT_PX - VIRTUAL_HEIGHT, p.y + 5 - VIRTUAL_HEIGHT * 0.5));
+    // Camera clamp to giant 4800x640 Sandbox world with subtle facing & fall lookahead
+    const sbLookX = p.facing * 18 + p.vx * 0.06;
+    const sbLookY = Math.max(-10, Math.min(14, p.vy * 0.03));
+    const targetCamX = Math.max(0, Math.min(SANDBOX_WORLD_WIDTH_PX - VIRTUAL_WIDTH, p.x + 4 - VIRTUAL_WIDTH * 0.5 + sbLookX));
+    const targetCamY = Math.max(0, Math.min(SANDBOX_WORLD_HEIGHT_PX - VIRTUAL_HEIGHT, p.y + 5 - VIRTUAL_HEIGHT * 0.5 + sbLookY));
     this.cameraX += (targetCamX - this.cameraX) * Math.min(1, simDt * 10);
     this.cameraY += (targetCamY - this.cameraY) * Math.min(1, simDt * 10);
     this.stepFxPools(simDt);

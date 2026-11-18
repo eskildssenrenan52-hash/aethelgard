@@ -85,7 +85,7 @@ export const StageSelectModal: React.FC<StageSelectModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="Seleção de Fases e Etapas"
-      className="fixed inset-0 z-40 flex items-center justify-center bg-[#05040a]/90 p-4 pointer-events-auto"
+      className="fixed inset-0 z-40 flex items-center justify-center bg-[#05040a]/90 p-2 sm:p-4 pointer-events-auto"
     >
       <PixelWindow
         title={isUnderworld ? `Submundo · 20 Círculos Infernais` : `Seleção de Mundos (${chapters.length} Biomas)`}
@@ -131,7 +131,7 @@ export const StageSelectModal: React.FC<StageSelectModalProps> = ({
           />
         </div>
 
-        <div className="max-h-[64vh] overflow-y-auto pr-1 pixel-scroll">
+        <div className="max-h-[58dvh] overflow-y-auto pr-1 pixel-scroll sm:max-h-[64dvh]">
           {/* Worlds Grid */}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
             {filteredChapters.map((ch) => {
